@@ -12,16 +12,17 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// Helper: Generate signed URL
 const getSignedUrl = (key) => {
   if (!key) return null;
   return s3.getSignedUrl('getObject', {
     Bucket: process.env.AWS_BUCKET_NAME,
     Key: key,
-    Expires: 60 * 5, 
+    Expires: 60 * 5, // 5 minutes
   });
 };
 
-
+// Helper function to generate annotated image with actual drawings
 async function generateAnnotatedImage(imageBuffer, annotationData) {
   try {
     const image = await loadImage(imageBuffer);
@@ -113,6 +114,9 @@ const updateAnnotation = async (req, res) => {
     if (!submission) {
       return res.status(404).json({ error: 'Submission not found' });
     }
+    if (!submission.originalImage) {
+      return res.status(400).json({ error: 'Original image not found for annotation' });
+    }
     const originalImage = await s3.getObject({
       Bucket: process.env.AWS_BUCKET_NAME,
       Key: submission.originalImage
@@ -132,7 +136,7 @@ const updateAnnotation = async (req, res) => {
     res.json(submission);
   } catch (error) {
     console.error('Annotation error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error while saving annotations', details: error.message });
   }
 };
 
@@ -154,8 +158,8 @@ const generatePdf = async (req, res) => {
     doc.pipe(pdfStream);
     doc.registerFont('Helvetica', 'Helvetica');
     doc.registerFont('Helvetica-Bold', 'Helvetica-Bold');
-    doc.font('Helvetica-Bold').fontSize(24).fillColor('#556B2F').text('Dental Clinic', 50, 30);
-    doc.font('Helvetica').fontSize(12).fillColor('#5A5F4D').text('Dental Analysis Report', 50, 50);
+    doc.font('Helvetica-Bold').fontSize(24).fillColor('#556B2F').text('DentalVision Clinic', 50, 30);
+    doc.font('Helvetica').fontSize(12).fillColor('#5A5F4D').text('Advanced Dental Analysis Report', 50, 50);
     doc.fontSize(10).text(`Report Generated: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`, 50, 70);
     doc.moveTo(50, 90).lineTo(550, 90).strokeColor('#C6D870').stroke();
     doc.moveDown(2);
@@ -202,7 +206,7 @@ const generatePdf = async (req, res) => {
         if (submission.annotationData && submission.annotationData.annotations && submission.annotationData.annotations.length > 0) {
           const startY = doc.y + imageHeight + 20;
           doc.font('Helvetica-Bold').fontSize(14).text('Doctor\'s Observations', 50, startY);
-          doc.moveTo(50, startY + 20).lineTo(550, startY + 20).strokeColor('#C6D870').stroke();
+          doc.moveTo(50, startY + 25).lineTo(550, startY + 25).strokeColor('#C6D870').stroke();
           doc.font('Helvetica').fontSize(12).fillColor('#2A2F1D');
           submission.annotationData.annotations.forEach((annotation, index) => {
             if (annotation.description && annotation.description.trim()) {
@@ -243,7 +247,7 @@ const generatePdf = async (req, res) => {
     });
   } catch (error) {
     console.error('PDF generation error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error while generating PDF', details: error.message });
   }
 };
 
@@ -261,7 +265,7 @@ const resendReport = async (req, res) => {
     });
   } catch (error) {
     console.error('Error resending report:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error while resending report', details: error.message });
   }
 };
 

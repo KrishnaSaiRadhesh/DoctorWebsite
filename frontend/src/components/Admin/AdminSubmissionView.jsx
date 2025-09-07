@@ -58,22 +58,18 @@ const AdminSubmissionView = () => {
 
   const handleImageLoad = (e) => {
     const img = e.target;
-    setImageDimensions({
-      width: img.naturalWidth,
-      height: img.naturalHeight
-    });
-    
-    if (canvasRef.current) {
+
+    if (canvasRef.current && containerRef.current) {
       const container = containerRef.current;
-      const scaleX = container.offsetWidth / img.naturalWidth;
-      const scaleY = container.offsetHeight / img.naturalHeight;
-      const scale = Math.min(scaleX, scaleY);
-      
-      canvasRef.current.width = img.naturalWidth;
-      canvasRef.current.height = img.naturalHeight;
-      canvasRef.current.style.width = `${img.naturalWidth * scale}px`;
-      canvasRef.current.style.height = `${img.naturalHeight * scale}px`;
-      
+
+      const displayWidth = img.clientWidth;
+      const displayHeight = img.clientHeight;
+
+      canvasRef.current.width = displayWidth;
+      canvasRef.current.height = displayHeight;
+
+      setImageDimensions({ width: displayWidth, height: displayHeight });
+
       drawAnnotations();
     }
   };
@@ -84,10 +80,9 @@ const AdminSubmissionView = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    annotations.forEach(annotation => {
+    annotations.forEach((annotation, index) => {
       ctx.strokeStyle = annotation.color || colors.primary;
       ctx.lineWidth = annotation.strokeWidth || 3;
       ctx.beginPath();
@@ -124,27 +119,28 @@ const AdminSubmissionView = () => {
       }
       
       ctx.stroke();
+
+      // Highlight selected annotation
+      if (selectedAnnotation === annotation) {
+        ctx.strokeStyle = '#FF0000'; // Red outline for selected annotation
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      }
     });
   };
 
-  
   useEffect(() => {
     drawAnnotations();
-  }, [annotations]);
+  }, [annotations, selectedAnnotation]);
 
   const getCanvasCoordinates = (clientX, clientY) => {
     if (!canvasRef.current || !containerRef.current) return { x: 0, y: 0 };
-    
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    const rect = container.getBoundingClientRect();
-    
-    const scaleX = canvas.width / container.offsetWidth;
-    const scaleY = canvas.height / container.offsetHeight;
-    
-    const x = (clientX - rect.left) * scaleX;
-    const y = (clientY - rect.top) * scaleY;
-    
+
+    const rect = canvasRef.current.getBoundingClientRect();
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
     return { x, y };
   };
 
@@ -212,6 +208,49 @@ const AdminSubmissionView = () => {
     setIsDrawing(false);
   };
 
+  const handleCanvasClick = (e) => {
+    if (submission?.status === 'reported') return;
+
+    const { x, y } = getCanvasCoordinates(e.clientX, e.clientY);
+
+    // Check if click is within any annotation
+    const clickedAnnotation = annotations.find(annotation => {
+      if (annotation.type === 'rectangle') {
+        return x >= annotation.x && x <= annotation.x + annotation.width &&
+               y >= annotation.y && y <= annotation.y + annotation.height;
+      } else if (annotation.type === 'circle') {
+        const centerX = annotation.x + annotation.width / 2;
+        const centerY = annotation.y + annotation.height / 2;
+        const radius = Math.max(Math.abs(annotation.width), Math.abs(annotation.height)) / 2;
+        return Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2) <= radius;
+      } else if (annotation.type === 'arrow') {
+        // Simplified check for arrow (check along the line)
+        const angle = Math.atan2(annotation.height, annotation.width);
+        const length = Math.sqrt(annotation.width ** 2 + annotation.height ** 2);
+        const dist = Math.abs((y - annotation.y) * Math.cos(angle) - (x - annotation.x) * Math.sin(angle)) / length;
+        return dist <= 10; // Tolerance of 10 pixels
+      } else if (annotation.type === 'freehand' && annotation.points) {
+        for (let i = 0; i < annotation.points.length - 1; i++) {
+          const p1 = annotation.points[i];
+          const p2 = annotation.points[i + 1];
+          const dist = Math.abs((y - p1.y) * (p2.x - p1.x) - (x - p1.x) * (p2.y - p1.y)) / 
+                       Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+          if (dist <= 10) return true;
+        }
+        return false;
+      }
+      return false;
+    });
+
+    if (clickedAnnotation) {
+      setSelectedAnnotation(clickedAnnotation);
+      setDescription(clickedAnnotation.description || '');
+    } else {
+      setSelectedAnnotation(null);
+      setDescription('');
+    }
+  };
+
   const handleDescriptionSubmit = () => {
     if (selectedAnnotation && description.trim()) {
       const updatedAnnotations = annotations.map(ann =>
@@ -234,15 +273,17 @@ const AdminSubmissionView = () => {
         annotations,
         createdAt: new Date().toISOString()
       };
-
-      await axios.put(`/admin/annotate/${id}`, {
+      console.log('Sending annotation data:', annotationData);
+      const response = await axios.put(`/admin/annotate/${id}`, {
         annotationData
+      }, {
+        headers: { 'Content-Type': 'application/json' }
       });
-
+      console.log('Save response:', response.data);
       await fetchSubmission();
     } catch (error) {
-      console.error('Error saving annotations:', error);
-      setError('Failed to save annotations. Please try again.');
+      console.error('Error saving annotations:', error.response ? error.response.data : error.message);
+      setError(error.response?.data?.error || 'Failed to save annotations. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -468,6 +509,7 @@ const AdminSubmissionView = () => {
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
+            onClick={handleCanvasClick} // Add click event to select annotations
           >
             {imageError ? (
               <div className="flex items-center justify-center h-64 text-red-600">
@@ -565,7 +607,7 @@ const AdminSubmissionView = () => {
                   onClick={resendReport}
                   disabled={sendingReport}
                   className="px-4 py-2 text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm font-medium transition-all duration-300"
-                  style={{ backgroundColor: colors.accent }}
+                  style={{ backgroundColor: colors.secondary }}
                   aria-label="Resend report to patient"
                 >
                   <Send className="w-4 h-4 mr-2" />

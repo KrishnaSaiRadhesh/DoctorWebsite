@@ -39,12 +39,6 @@ const Register = () => {
       return;
     }
 
-    if (formData.role === 'patient' && !formData.patientId) {
-      setError('Patient ID is required for patient registration');
-      setLoading(false);
-      return;
-    }
-
     try {
       const { confirmPassword, ...registrationData } = formData;
       

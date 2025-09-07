@@ -1,4 +1,3 @@
-// src/App.jsx
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/Common/ProtectedRoute';
 import Login from './components/Auth/Login';
@@ -7,33 +6,29 @@ import PatientDashboard from './components/Patient/PatientDashboard';
 import AdminDashboard from './components/Admin/AdminDashboard';
 import AdminSubmissionView from './components/Admin/AdminSubmissionView';
 import axios from 'axios';
+import { Toaster } from 'react-hot-toast';
 
 function App() {
-  // Configure axios globally
   axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   
-  // Set auth token if exists
   const token = localStorage.getItem('token');
   if (token) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   }
 
-  // Get user from localStorage
   const userData = localStorage.getItem('user');
   const user = userData ? JSON.parse(userData) : null;
 
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
+        <Toaster position="top-right" reverseOrder={false} />
+
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           
-          <Route path="/patient" element={
-    
-              <PatientDashboard />
-     
-          } />
+          <Route path="/patient" element={<PatientDashboard />} />
           
           <Route path="/admin" element={
             <ProtectedRoute requiredRole="admin">
