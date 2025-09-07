@@ -122,9 +122,8 @@ const AdminSubmissionView = () => {
       
       ctx.stroke();
 
-      // Highlight selected annotation
       if (selectedAnnotation === annotation) {
-        ctx.strokeStyle = '#FF0000'; // Red outline for selected annotation
+        ctx.strokeStyle = '#FF0000'; 
         ctx.lineWidth = 4;
         ctx.stroke();
       }
