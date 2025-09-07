@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { ArrowLeft, Save, Download, RotateCcw, Send, User, Mail, Calendar, Clock, AlertCircle } from 'lucide-react';
 
 const colors = {
@@ -314,9 +316,26 @@ const AdminSubmissionView = () => {
     setError(null);
     try {
       const response = await axios.post(`/admin/resend-report/${id}`);
-      alert(`Report sent to ${response.data.patientEmail}`);
+      toast.success(`Report successfully sent to ${response.data.patientEmail}`, {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "light",
+      });
     } catch (error) {
       console.error('Error resending report:', error);
+      toast.error('Failed to resend report. Please try again.', {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "light",
+      });
       setError('Failed to resend report. Please try again.');
     } finally {
       setSendingReport(false);
@@ -389,6 +408,7 @@ const AdminSubmissionView = () => {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: colors.background }}>
+      <ToastContainer />
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
